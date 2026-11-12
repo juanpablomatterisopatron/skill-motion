@@ -14,11 +14,11 @@ Un skill genérico para que Claude Code cree videos animados y comerciales de pr
 - Revisión del resultado: se escucha con transcripción (Deepgram, opcional) y se mira con hojas de cuadros antes de renderizar.
 
 ## Instalar
-1. Descarga `skill-motion-generico.zip` (o clona este repositorio).
+1. Descarga `skill-motion-generico.zip` desde este repositorio.
 2. Descomprime la carpeta `skill-motion/` dentro de `~/.claude/skills/` (en Windows, `%USERPROFILE%\.claude\skills\`).
 3. Abre Claude Code y escribe: «Hazme un comercial de 30 segundos para…».
 
-El detalle está en `skill-motion/INSTALAR.md`. Necesitas Node, Python, ffmpeg y Chrome.
+El zip trae un `INSTALAR.md` con el detalle. Necesitas Node, Python, ffmpeg y Chrome.
 
 Hecho por Tu academIA (tu-academia.cl) para la comunidad IA Founders.
 Licencia: MIT (ver LICENSE).
