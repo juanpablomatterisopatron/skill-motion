@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Película</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400&family=Manrope:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+ :root { color-scheme: dark; }
+ html, body { margin: 0; height: 100%; background: #14100c; color: #f6efe2; font: 15px 'Manrope', system-ui, sans-serif; }
+ .marco { position: relative; width: min(100vw, calc((100vh - 64px) * 16 / 9)); aspect-ratio: 16 / 9; margin: 0 auto; }
+ canvas { display: block; width: 100%; height: 100%; }
+ .play { position: absolute; inset: 0; margin: auto; width: 120px; height: 120px; border-radius: 50%; border: 0; background: rgba(192,87,58,.92); color: #fff; font-size: 44px; cursor: pointer; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+ .play[hidden] { display: none; }
+ .controles { display: flex; gap: 10px; align-items: center; justify-content: center; height: 64px; }
+ .controles button { font: inherit; color: inherit; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+ .controles input { width: min(50vw, 600px); }
+ .tiempo { font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; opacity: .8; }
+ .render .controles, .render .play { display: none; }
+ .render .marco { width: 1920px; height: 1080px; margin: 0; }
+</style>
+</head>
+<body>
+<div class="marco"><canvas id="lienzo" width="1920" height="1080"></canvas><button class="play" id="play" aria-label="Ver la película">▶</button></div>
+<div class="controles">
+ <button type="button" id="pausa">❚❚ Pausa</button>
+ <button type="button" id="replay">↺ Desde el inicio</button>
+ <input type="range" id="barra" min="0" max="1000" value="0" aria-label="Avanzar o retroceder">
+ <span class="tiempo" id="tiempo">0:00</span>
+</div>
+<script src="pelicula.js"></script>
+<script>
+(() => {
+ const render = location.search.includes('render');
+ if (render) document.documentElement.classList.add('render');
+ const peli = Pelicula.montar(document.getElementById('lienzo'));
+ window.VIDEO = peli.VIDEO; window.seek = peli.seek;
+ const D = peli.VIDEO.duration;
+ // la banda sonora (narración + música + efectos), igual para ver en vivo y para renderizar a MP4
+ window.buildAudio = async ctx => {
+  const b = await ctx.decodeAudioData(await (await fetch('audio/banda.mp3')).arrayBuffer());
+  const s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);
+ };
+ if (render) { document.fonts.ready.then(() => seek(0)); return; }
+ let buf, ac, src, startAt = 0, offset = 0, playing = false;
+ const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+ async function play() {
+  ac ??= new AudioContext();
+  if (!buf) buf = await ac.decodeAudioData(await (await fetch('audio/banda.mp3')).arrayBuffer());
+  if (offset >= D - 0.05) offset = 0;
+  src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination);
+  src.start(0, offset); startAt = ac.currentTime; playing = true;
+  src.onended = () => { if (playing && now() >= D - 0.1) { playing = false; offset = D; document.getElementById('play').hidden = false; } };
+  document.getElementById('play').hidden = true;
+ }
+ function pause() { if (!playing) return; offset = now(); playing = false; try { src.stop(); } catch (_) {} }
+ function now() { return playing ? Math.min(D, offset + ac.currentTime - startAt) : offset; }
+ document.getElementById('play').onclick = play;
+ document.getElementById('pausa').onclick = () => playing ? pause() : play();
+ document.getElementById('replay').onclick = () => { pause(); offset = 0; play(); };
+ const barra = document.getElementById('barra');
+ barra.oninput = () => { const era = playing; pause(); offset = barra.value / 1000 * D; if (era) play(); };
+ document.fonts.ready.then(() => {
+  (function loop() { const t = now(); seek(t); barra.value = Math.round(t / D * 1000); document.getElementById('tiempo').textContent = `${fmt(t)} / ${fmt(D)}`; requestAnimationFrame(loop); })();
+ });
+})();
+</script>
+</body>
+</html>

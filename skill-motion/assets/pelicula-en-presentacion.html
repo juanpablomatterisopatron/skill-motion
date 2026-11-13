@@ -1,0 +1,95 @@
+<!-- Película dentro de una presentación HTML (ejemplo genérico).
+     1. CSS de la lámina oscura con el lienzo 16:9 lo más grande posible.
+     2. La lámina: <section class="slide pelicula" data-peli="N"> con lienzo, botón ▶ y controles (sin ids: puede haber varias).
+     3. Los scripts: primero el motor de cada película ({{js:peliculaN/peliculaN.js}}), después este controlador.
+     El audio va adentro como data URI ({{mp3:...}}) y se decodifica con atob: una página publicada no deja hacer fetch.
+     La presentación necesita: un evento 'cambio-lamina' al cambiar de lámina, la clase .actual en la lámina visible,
+     .presentando en <html> en modo presentación, y que el clic de avanzar ignore .pantalla-peli y .peli-controles. -->
+
+<style>
+/* Una película dentro de una lámina: oscura con el lienzo 16:9 lo más grande posible. */
+.pelicula{background:#120e0b;color:var(--sobre-tinta);padding-inline:clamp(12px,3vw,48px);gap:12px;align-items:center}
+.pantalla-peli{position:relative;width:min(100%,calc((100dvh - 110px) * 16 / 9));aspect-ratio:16/9;max-width:100%}
+.pantalla-peli canvas{display:block;width:100%;height:100%;border-radius:6px;background:#000;cursor:pointer}
+.peli-play{position:absolute;inset:0;margin:auto;width:clamp(72px,9vw,120px);height:clamp(72px,9vw,120px);border-radius:50%;border:0;
+ background:var(--acento);color:#fff;font-size:clamp(28px,3.4vw,44px);cursor:pointer;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.peli-play:focus-visible,.peli-controles button:focus-visible{outline:3px solid #f3d9a8;outline-offset:3px}
+.peli-controles{display:flex;gap:10px;align-items:center;font:600 .85rem/1 var(--f-texto);color:var(--sobre-tinta-2)}
+.peli-controles button{font:inherit;color:var(--sobre-tinta);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:7px 14px;cursor:pointer}
+.peli-controles .peli-tiempo{font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
+.peli-controles .peli-extra{margin-right:auto;color:oklch(80% .12 70)}
+.pelicula .notas{color:var(--tinta)}
+</style>
+
+<section class="slide pelicula" data-peli="3" aria-label="Extra: película de un minuto">
+ <div class="pantalla-peli">
+  <canvas class="peli-lienzo" width="1920" height="1080" role="img" aria-label="Película extra de un minuto: describe aquí qué se ve"></canvas>
+  <button type="button" class="peli-play" aria-label="Ver la película extra">▶</button>
+ </div>
+ <div class="peli-controles">
+  <span class="etiqueta peli-extra">Extra</span>
+  <button type="button" class="peli-pausa" aria-label="Pausar o seguir la película">❚❚ Pausa</button>
+  <button type="button" class="peli-replay" aria-label="Ver la película desde el inicio">↺ Desde el inicio</button>
+  <span class="peli-tiempo">0:00 / 1:01</span>
+ </div>
+ <aside class="notas">Extra, si queda tiempo: describe aquí la película de un minuto y qué muestra cada escena.</aside>
+</section>
+
+<script>
+// Control de las películas: el reloj del audio manda el cuadro (mismo método que pelicula/pelicula.html). Sirve para
+// cualquier lámina con data-peli; la tecla P alterna la película de la lámina que se está mostrando.
+(() => {
+ const raiz = document.documentElement, controles = [];
+ const PELIS = {
+  '2': { motor: window.Pelicula2, audio: '{{mp3:pelicula-2/audio/banda.mp3}}', portada: 2.6 },
+  '3': { motor: window.Pelicula3, audio: '{{mp3:pelicula-3/audio/banda.mp3}}', portada: 10.4 },
+ };
+ const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+ document.querySelectorAll('.slide.pelicula[data-peli]').forEach(lam => {
+  const def = PELIS[lam.dataset.peli]; if (!def || !def.motor) return;
+  const q = c => lam.querySelector(c);
+  const peli = def.motor.montar(q('.peli-lienzo')), D = peli.VIDEO.duration;
+  const btn = q('.peli-play'), pausaB = q('.peli-pausa'), tiempo = q('.peli-tiempo');
+  let buf, ac, src, startAt = 0, offset = 0, playing = false, empezo = false, cargando = null, ultimo = -1;
+  async function play() {
+   ac ??= new AudioContext();
+   if (ac.state === 'suspended') await ac.resume();
+   // el audio va adentro del archivo; se decodifica sin fetch (la página publicada no deja pedir nada a la red)
+   if (!buf) {
+    cargando ??= (() => { const bin = atob(def.audio.slice(def.audio.indexOf(',') + 1)), u8 = new Uint8Array(bin.length);
+     for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+     return ac.decodeAudioData(u8.buffer); })();
+    buf = await cargando;
+   }
+   if (playing) return;
+   if (offset >= D - 0.05) offset = 0;
+   src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination);
+   src.start(0, offset); startAt = ac.currentTime; playing = true; empezo = true;
+   btn.hidden = true; pausaB.textContent = '❚❚ Pausa';
+  }
+  function pause() { if (!playing) return; offset = now(); playing = false; try { src.stop(); } catch (_) {} pausaB.textContent = '▶ Seguir'; }
+  function now() { return playing ? Math.min(D, offset + ac.currentTime - startAt) : offset; }
+  const alternar = () => (playing ? pause() : play());
+  btn.addEventListener('click', play);
+  q('.peli-lienzo').addEventListener('click', alternar);
+  pausaB.addEventListener('click', alternar);
+  q('.peli-replay').addEventListener('click', () => { pause(); offset = 0; play(); });
+  document.addEventListener('cambio-lamina', () => { if (raiz.classList.contains('presentando') && !lam.classList.contains('actual')) pause(); });
+  controles.push({ lam, alternar });
+  const listo = document.fonts ? document.fonts.ready.catch(() => {}) : Promise.resolve();
+  listo.then(() => {
+   (function loop() {
+    if (!raiz.classList.contains('presentando') || lam.classList.contains('actual')) {
+     // antes de empezar se ve un cuadro de la película, no la pantalla negra del inicio
+     const t = empezo ? now() : def.portada;
+     if (t !== ultimo) { peli.seek(t); ultimo = t; }
+     tiempo.textContent = `${fmt(empezo ? t : 0)} / ${fmt(D)}`;
+     if (playing && t >= D - 0.02) { playing = false; offset = D; btn.hidden = false; pausaB.textContent = '▶ Seguir'; }
+    }
+    requestAnimationFrame(loop);
+   })();
+  });
+ });
+ window.alternarPelicula = () => { const c = controles.find(c => c.lam.classList.contains('actual')); if (c) c.alternar(); };
+})();
+</script>
