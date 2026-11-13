@@ -51,7 +51,7 @@ el resultado, una cuenta de Deepgram (`DEEPGRAM_API_KEY`, opcional). Ver `INSTAL
 | **Comercial pro, demo de producto, formatos 16:9, 9:16 y 1:1** | `references/promo.md`, `assets/motor-promo.js` |
 | Filmar una web real cuadro a cuadro con GPU | `assets/filmar_web.py` |
 | Brief del cliente y storyboard fijo con rangos de cuadros (antes de dibujar un comercial) | `assets/brief-cliente.md`, `assets/storyboard-plantilla.md`, `references/promo.md` |
-| Cursor en arco con clic, tecleo, entradas con rebote, desfase, deriva y empuje de cámara | `motor-promo.js` (`cursor`, `tecleo`, `entra`, `escalonar`, `deriva`, `empuje`), `references/motor-visual.md` sección 11 |
+| Cursor en arco con clic, tecleo, entradas con rebote, desfase, deriva y empuje de cámara. Todo viaje del puntero en un comercial va en arco con pausa antes del clic (`cursorPro`); el movimiento recto está prohibido | `motor-promo.js` (`cursorPro`, `cursor`, `tecleo`, `entra`, `escalonar`, `deriva`, `empuje`), `references/motor-visual.md` sección 11 |
 | Zonas seguras, interfaz en vector, lista «Revisar antes de renderizar» y banco de pulidos | `references/promo.md` |
 | Cifras del guion en un bloque `DATOS` para revisiones de una línea; render sin audio | `references/entrega.md` sección 11 |
 | Acotaciones del guion (`[VISUAL]`, pausas), cada número en pantalla con su palabra | `references/guion.md` sección 8 |

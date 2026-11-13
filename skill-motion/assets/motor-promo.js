@@ -6,7 +6,7 @@
    Uso:  const P = MotorPromo.crear(ctx, { W: 1920, H: 1080, bpm: 120, fase: 0, sans: 'Sora, sans-serif' });
    Vertical (Reels e historias): crear con W: 1080, H: 1920; las piezas usan W y H, no números fijos.
    fps (30 por defecto) solo sirve para convertir cuadros a segundos (cuadros, escalonar, apretón del clic).
-   Movimiento continuo y cursor en arco: entra, sale, deriva, empuje, escalonar, cursor, tecleo (ver motor-visual.md §11).
+   Movimiento continuo y cursor en arco: entra, sale, deriva, empuje, escalonar, cursor, cursorPro, tecleo (ver motor-visual.md §11).
    Acotaciones en pantalla y plano técnico: asset aparte, motor-acotaciones.js (se incluye junto a este o a cualquier motor). */
 const MotorPromo = (() => {
   const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
@@ -208,6 +208,46 @@ const MotorPromo = (() => {
       }
       return { x: px, y: py, esc, clic: !!(p.clic && s >= 0 && s < dur) };
     }
+    /* ---------- cursorPro: el puntero de un comercial real (arco hacia arriba, pausa antes del clic, clic con anillo) ---------- */
+    // enArco(x0, y0, x1, y1, k): punto k (0 a 1) de una curva cuadrática de (x0, y0) a (x1, y1). El punto de control se
+    // desplaza 0,22 de la distancia en perpendicular, siempre hacia arriba (si la normal apunta abajo, se invierte).
+    function enArco(x0, y0, x1, y1, k) {
+      const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1; let nx = -dy / l, ny = dx / l; if (ny > 0) { nx = -nx; ny = -ny; }
+      const cx = (x0 + x1) / 2 + nx * l * 0.22, cy = (y0 + y1) / 2 + ny * l * 0.22, u = 1 - k;
+      return [u * u * x0 + 2 * u * k * cx + k * k * x1, u * u * y0 + 2 * u * k * cy + k * k * y1];
+    }
+    // cursorPro(t, ruta, clics, opts): ruta = [[t0, t1, x, y], ...] = viajar hasta (x, y) entre t0 y t1 (arco, suave al salir y
+    // al llegar); entre un tramo y el siguiente queda quieto (esa pausa es la duda antes del clic). clics = [t, ...]: al
+    // clic el puntero se achica a 0,8 y vuelve con rebote en 0,16 s, y un anillo se expande y se desvanece en 0,45 s.
+    // opts: a (opacidad), escala (por defecto 2,2 en horizontal y 2,7 en vertical), inicio [x, y] (donde espera antes del
+    // primer tramo; por defecto un poco abajo a la derecha del primer destino), anillo (color del anillo), tinta (contorno),
+    // dibujar: false solo devuelve la posición. No dibuja nada antes de ruta[0][0]. Devuelve { x, y, esc, clic } o null.
+    // Regla: en un comercial, TODO viaje del puntero va por aquí (o por cursor): el movimiento recto no se usa.
+    function cursorPro(t, ruta, clics = [], { a = 1, escala = null, inicio = null, anillo = '#ff7a1a', tinta = '#10141c', dibujar = true } = {}) {
+      if (!ruta.length || t < ruta[0][0] - 0.01) return null;
+      const vert = H > W, s0 = escala || (vert ? 2.7 : 2.2);
+      let px = ruta[0][2], py = ruta[0][3], prev = inicio || [ruta[0][2] + (vert ? 260 : 420), ruta[0][3] + (vert ? 380 : 260)];
+      for (const [t0, t1, tx, ty] of ruta) {
+        if (t >= t1) { prev = [tx, ty]; px = tx; py = ty; continue; }
+        if (t >= t0) { [px, py] = enArco(prev[0], prev[1], tx, ty, ease.inOutCubic(lin(t0, t1, t))); }
+        else { [px, py] = prev; }
+        break;
+      }
+      let s = s0, clic = false;
+      x.save(); x.globalAlpha = a;
+      for (const c of clics) {
+        const u = t - c;
+        if (u >= 0 && u < 0.45) { const r = ease.outCubic(lin(0, 0.45, u)); x.save(); x.globalAlpha = 0.45 * (1 - r) * a; x.strokeStyle = anillo; x.lineWidth = 4; if (dibujar) { x.beginPath(); x.arc(px, py, 10 + r * 34 * s0 / 2.2, 0, 7); x.stroke(); } x.restore(); }
+        if (u >= 0 && u < 0.16) { s = s0 * (0.8 + 0.2 * ease.outBack(lin(0, 0.16, u))); clic = true; }
+      }
+      if (dibujar) {
+        x.translate(px - 4 * s, py - 2 * s); x.scale(s, s); x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = 6; x.shadowOffsetY = 2;
+        x.beginPath(); x.moveTo(4, 2); x.lineTo(20, 14); x.lineTo(13, 15.2); x.lineTo(9.5, 22); x.closePath(); x.fillStyle = '#fff'; x.fill();
+        x.shadowColor = 'transparent'; x.strokeStyle = tinta; x.lineWidth = 1.6; x.lineJoin = 'round'; x.stroke();
+      }
+      x.restore();
+      return { x: px, y: py, esc: s / s0, clic };
+    }
     // tecleo(): texto que se escribe solo desde t0, con ritmo humano (cada letra tiene su propio tiempo, fijo por semilla).
     // Devuelve { s, n, listo, caret }: s es lo escrito hasta t; caret dice si el cursor de texto está visible.
     function tecleo(texto, t, t0, { cps = 14, sem = 5 } = {}) {
@@ -217,7 +257,7 @@ const MotorPromo = (() => {
       return { s: texto.slice(0, n), n, listo, caret };
     }
 
-    return { W, H, BEAT, SANS, golpe, pulsoN, enPulso, fuente, mascara, palabras, contador, grada, vineta, plano, ventana, telefono, tarjeta, pastilla, barrido, iris, destello, sacudida, estallido, petalos, cuadros, escalonar, entra, sale, deriva, empuje, cursor, tecleo };
+    return { W, H, BEAT, SANS, golpe, pulsoN, enPulso, fuente, mascara, palabras, contador, grada, vineta, plano, ventana, telefono, tarjeta, pastilla, barrido, iris, destello, sacudida, estallido, petalos, cuadros, escalonar, entra, sale, deriva, empuje, cursor, cursorPro, enArco, tecleo };
   }
   return { crear, clamp, ss, lin, mix, ease, rng };
 })();

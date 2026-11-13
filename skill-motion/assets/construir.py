@@ -15,6 +15,6 @@ def uri(m):
     f = A / 'img' / clave
     return f'data:{TIPOS[f.suffix]};base64,' + base64.b64encode(f.read_bytes()).decode()
 salida = re.sub(r'\{\{([\w.:/-]+)\}\}', uri, t)
-assert '{{' not in salida and '—' not in salida and '–' not in salida
+assert '{{' not in salida and '\u2014' not in salida and '\u2013' not in salida
 (A / 'presentacion.html').write_text(salida)
 print(f'presentacion.html: {len(salida) // 1024} KB, {salida.count("class=\"slide")} láminas')
